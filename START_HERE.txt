@@ -1,0 +1,380 @@
+LUNARMATCH-AI
+==============
+
+SIH 2026 Problem Statement 26166
+Multi-modal, sun-angle and scale-invariant lunar image correspondence
+and registration prototype.
+
+This file explains how to install, start, test, and use the project.
+
+
+1. REQUIREMENTS
+===============
+
+Required:
+- Windows, Linux, or macOS
+- Python 3.11 or newer
+- Internet access for the first package installation
+- At least 4 GB RAM recommended
+
+The current development environment uses:
+- Python 3.14
+- OpenCV
+- NumPy
+- SciPy
+- Pillow
+- scikit-image
+- pandas
+- Streamlit
+- pytest
+
+The application can process images locally after the dependencies are installed.
+No lunar image is uploaded to a remote service by this prototype.
+
+
+2. WINDOWS INSTALLATION
+=======================
+
+Open PowerShell and run:
+
+    cd D:\SIH
+    py -3.11 -m venv .venv
+    .\.venv\Scripts\Activate.ps1
+    python -m pip install --upgrade pip
+    pip install -r requirements.txt
+
+If Python 3.11 is not available, use the installed Python version:
+
+    python -m venv .venv
+    .\.venv\Scripts\Activate.ps1
+    python -m pip install --upgrade pip
+    pip install -r requirements.txt
+
+If PowerShell blocks activation, run this once in PowerShell as the current user:
+
+    Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+
+Then activate the environment again:
+
+    .\.venv\Scripts\Activate.ps1
+
+The repository already contains a configured .venv in the development workspace.
+
+
+3. LINUX OR MACOS INSTALLATION
+==============================
+
+    cd /path/to/SIH
+    python3.11 -m venv .venv
+    source .venv/bin/activate
+    python -m pip install --upgrade pip
+    pip install -r requirements.txt
+
+
+4. START THE APPLICATION
+========================
+
+Windows PowerShell:
+
+    cd D:\SIH
+    .\.venv\Scripts\Activate.ps1
+    streamlit run app.py
+
+Linux/macOS:
+
+    cd /path/to/SIH
+    source .venv/bin/activate
+    streamlit run app.py
+
+Streamlit prints a local URL, normally:
+
+    http://localhost:8501
+
+Open that URL in a browser.
+
+To use another port:
+
+    streamlit run app.py --server.port 8502
+
+To run without opening a browser:
+
+    streamlit run app.py --server.headless true
+
+
+5. FIRST DEMO RUN
+=================
+
+1. Start the application.
+2. Leave "Use demo data" enabled in the sidebar.
+3. Select SIFT as the matching method.
+4. Leave the transformation set to auto.
+5. Click RUN REGISTRATION.
+6. Inspect the Registered, Overlay, Correspondences, and Structure tabs.
+7. Download matches.csv, registered_image.png, transformation.json,
+   and metrics.json from the results area.
+
+The built-in pair is synthetic validation imagery. It is clearly labelled:
+
+    DEMO DATA - Synthetic validation pair - Not official evaluation data
+
+Synthetic/demo results must not be presented as official ISRO benchmark results.
+
+
+6. USING YOUR OWN IMAGES
+========================
+
+1. Disable Use demo data if necessary.
+2. Upload the moving/source image.
+3. Upload the fixed/reference image.
+4. Select the known sensor type, or select Unknown.
+5. Select a matching method:
+    - Structural SIFT: recommended for different illumination or sensor appearance;
+      combines normalized-intensity and gradient-structure correspondences
+    - SIFT: reliable intensity-based baseline
+   - ORB: faster baseline, useful for quick experiments
+   - Advanced AI (fallback): currently uses the SIFT baseline honestly;
+     pretrained learned-model weights are not bundled yet
+6. Select the transformation:
+   - auto: compares similarity, affine, and homography candidates
+   - similarity: rotation, scale, and translation
+   - affine: adds shear and non-uniform scale
+   - homography: projective transformation
+7. Adjust confidence, grid, and refinement settings if needed.
+8. Click RUN REGISTRATION.
+
+Supported upload extensions:
+- PNG
+- JPG/JPEG
+- TIFF/TIF, subject to the installed OpenCV codec support
+
+The source image is warped into the reference image coordinate system.
+The result also reports Structural similarity, an illumination-tolerant gradient
+agreement score in addition to geometric inlier metrics. It is not an official
+benchmark score.
+Sub-pixel refinement is applied before a final geometry re-estimation, so a
+successful refinement can influence the final registered image.
+
+
+7. WHAT THE PIPELINE DOES
+=========================
+
+Input images
+  -> validation and grayscale conversion
+  -> robust normalization and optional CLAHE
+  -> denoising and structural representations
+  -> SIFT or ORB feature extraction
+  -> descriptor matching
+  -> Lowe ratio filtering
+  -> mutual consistency filtering
+  -> confidence filtering
+  -> N x N spatial match distribution
+  -> RANSAC transformation estimation
+  -> registered image generation
+  -> local sub-pixel refinement attempt
+  -> metrics and exports
+
+Important modules:
+
+    app.py
+        Streamlit user interface and demo workflow.
+
+    backend/config.py
+        RegistrationConfig settings.
+
+    backend/preprocessing/pipeline.py
+        Image validation, normalization, gradients, edges, and pyramid data.
+
+    backend/matching/classical.py
+        SIFT, ORB, mutual matching, confidence, and spatial distribution.
+
+    backend/geometry/estimation.py
+        Similarity, affine, and homography RANSAC estimation.
+
+    backend/registration/pipeline.py
+        Main registration orchestration function.
+
+    backend/refinement/subpixel.py
+        Local template refinement and quadratic fractional-pixel peak fitting.
+
+    backend/evaluation/metrics.py
+        Inlier, error, coverage, density, and prototype confidence metrics.
+
+    backend/evaluation/export.py
+        CSV, JSON, and PNG export helpers.
+
+
+8. RUNNING TESTS
+================
+
+Activate the virtual environment first, then run:
+
+    python -m pytest -q
+
+Expected current result:
+
+    3 passed
+
+The tests cover:
+- synthetic classical registration
+- fractional sub-pixel refinement
+- match and transformation exports
+
+To run one test file:
+
+    python -m pytest -q tests/test_registration.py
+    python -m pytest -q tests/test_subpixel.py
+    python -m pytest -q tests/test_export.py
+
+To check Python syntax:
+
+    python -m compileall -q app.py backend tests
+
+
+9. OUTPUTS AND EXPORTS
+======================
+
+The dashboard currently provides:
+
+    matches.csv
+        Source/reference coordinates, confidence, inlier state,
+        and reprojection error.
+
+    registered_image.png
+        Source image warped to reference coordinates.
+
+    transformation.json
+        Selected model, transformation matrix, metrics, and refined count.
+
+    metrics.json
+        Calculated registration metrics.
+
+Metrics are calculated from the actual input pair. No benchmark values are
+hard-coded.
+
+Prototype Registration Confidence is an interpretable prototype score only.
+It is not an official ISRO metric.
+
+
+10. COMMON ERRORS
+=================
+
+REGISTRATION FAILED: Too few geometrically usable matches
+- Try SIFT instead of ORB.
+- For a full lunar disk matched to a cropped terrain image, use Structural SIFT;
+    the pipeline now retries with relaxed descriptor filtering, multi-scale SIFT,
+    and gradient region retrieval before RANSAC.
+- Use images with visible terrain structure.
+- Avoid completely blank, saturated, or heavily blurred images.
+- Lower Minimum confidence carefully.
+
+REGISTRATION FAILED: Confidence filtering left too few matches
+- Lower Minimum confidence.
+- Increase the maximum matches per grid cell.
+- Choose images with overlapping terrain.
+
+REGISTRATION FAILED: RANSAC could not estimate a stable transformation
+- Confirm that the images overlap.
+- Try similarity or affine instead of homography.
+- Use a larger RANSAC threshold only when image noise justifies it.
+
+No features found
+- The image may be blank, too smooth, overexposed, or underexposed.
+- Try a higher-quality image or enable the demo data.
+
+TIFF cannot be loaded
+- OpenCV codec support varies by platform and TIFF encoding.
+- Convert the image to PNG or a standard 8-bit TIFF for the prototype.
+
+Out of memory
+- Resize very large images before uploading.
+- Use ORB for a lower-cost first attempt.
+- Close other applications and retry.
+
+
+11. SCIENTIFIC LIMITATIONS
+==========================
+
+This is a functional prototype, not an official ISRO evaluation system.
+
+Current status:
+- SIFT and ORB classical registration are implemented.
+- Structural SIFT matching combines intensity and gradient evidence for images
+    that have different brightness, contrast, or sensor appearance.
+- Structural preprocessing is implemented.
+- Spatial distribution and robust geometry are implemented.
+- Sub-pixel refinement is attempted and tested on synthetic data.
+- The Advanced AI selector currently falls back to SIFT.
+- No universal accuracy claim is made.
+- No official Chandrayaan benchmark score is included.
+
+Future work can add:
+- SuperPoint plus LightGlue
+- LoFTR or another learned dense matcher
+- coarse-to-fine learned multi-scale matching
+- GeoTIFF metadata preservation
+- FastAPI endpoints
+- experiment comparison tables
+- PDF reports
+- GPU batching
+- DEM-assisted orthorectification
+- uncertainty estimation
+- official Chandrayaan dataset evaluation
+
+
+12. PROJECT STRUCTURE
+====================
+
+    app.py
+    README.md
+    START_HERE.txt
+    requirements.txt
+    backend/
+        config.py
+        preprocessing/
+        matching/
+        geometry/
+        registration/
+        refinement/
+        evaluation/
+    data/
+        sample/
+        outputs/
+    tests/
+
+
+13. SAFE DATA HANDLING
+======================
+
+- Uploaded images are decoded in memory by the Streamlit application.
+- Uploaded files are not executed.
+- The prototype does not send images to a remote service.
+- Use trusted image files and reasonable upload sizes.
+- Production deployment should add explicit file-size limits,
+  temporary-directory cleanup, authentication, and audit logging.
+
+
+14. QUICK COMMAND REFERENCE
+===========================
+
+    cd D:\SIH
+    .\.venv\Scripts\Activate.ps1
+    pip install -r requirements.txt
+    streamlit run app.py
+    python -m pytest -q
+    python -m compileall -q app.py backend tests
+
+
+15. CONTACT POINT FOR DEVELOPMENT
+=================================
+
+The main registration function is:
+
+    backend.registration.pipeline.register(source, reference, config)
+
+Use this function when adding an API, batch workflow, or experiment runner.
+Keep new matchers compatible with the Match dataclass in:
+
+    backend.matching.classical
+
+This keeps the geometry, metrics, refinement, visualization, and export layers
+independent from any one feature matcher.
