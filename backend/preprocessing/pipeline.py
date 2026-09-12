@@ -12,6 +12,7 @@ class PreparedImage:
     gradient: np.ndarray
     orientation: np.ndarray
     edges: np.ndarray
+    structure: np.ndarray
     pyramid: list[np.ndarray]
 
 
@@ -58,7 +59,9 @@ def prepare_image(image: np.ndarray, clahe: bool = True, pyramid_levels: int = 4
     gradient = cv2.normalize(gradient, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
     orientation = cv2.phase(gx, gy, angleInDegrees=True)
     edges = cv2.Canny(normalized, 50, 140)
+    structure = cv2.equalizeHist(normalized)
+    structure = cv2.bilateralFilter(structure, 5, 35, 35)
     pyramid = [normalized]
     for _ in range(1, max(1, pyramid_levels)):
         pyramid.append(cv2.pyrDown(pyramid[-1]))
-    return PreparedImage(gray, normalized, gradient, orientation, edges, pyramid)
+    return PreparedImage(gray, normalized, gradient, orientation, edges, structure, pyramid)

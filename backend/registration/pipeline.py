@@ -18,26 +18,35 @@ def register(source: np.ndarray, reference: np.ndarray, config: RegistrationConf
     method = "sift" if requested_method in {"advanced", "structural"} else requested_method
     matches = detect_and_match(source_prepared.normalized, reference_prepared.normalized, method, config.ratio_threshold)
     if config.structural_matching and method == "sift":
-        structural_matches = detect_and_match(source_prepared.gradient, reference_prepared.gradient, "sift", min(config.ratio_threshold, 0.82))
+        structural_matches = detect_and_match(source_prepared.structure, reference_prepared.structure, "sift", min(config.ratio_threshold, 0.82))
         matches = merge_matches(matches, structural_matches)
     if len(matches) < 3 and method == "sift":
         # Full-disk versus cropped-terrain pairs often have a large scale/framing gap.
         # Relax descriptor filtering only as a fallback; RANSAC remains mandatory.
         relaxed = detect_and_match(source_prepared.normalized, reference_prepared.normalized, "sift", 0.90, mutual=False)
-        relaxed_structural = detect_and_match(source_prepared.gradient, reference_prepared.gradient, "sift", 0.90, mutual=False)
+        relaxed_structural = detect_and_match(source_prepared.structure, reference_prepared.structure, "sift", 0.90, mutual=False)
         matches = merge_matches(relaxed, relaxed_structural)
     if len(matches) < 3 and method == "sift":
         matches = detect_multiscale_matches(source_prepared.normalized, reference_prepared.normalized, "sift", 0.90)
         if config.structural_matching:
             matches = merge_matches(
                 matches,
-                detect_multiscale_matches(source_prepared.gradient, reference_prepared.gradient, "sift", 0.90),
+                detect_multiscale_matches(source_prepared.structure, reference_prepared.structure, "sift", 0.90),
             )
     if len(matches) < 3 and method == "sift":
-        matches = retrieve_region_matches(source_prepared.gradient, reference_prepared.gradient)
+        matches = retrieve_region_matches(source_prepared.structure, reference_prepared.structure)
+    if len(matches) < 3 and method == "sift":
+        orb_intensity = detect_and_match(source_prepared.normalized, reference_prepared.normalized, "orb", 0.90, mutual=False)
+        orb_structure = detect_and_match(source_prepared.structure, reference_prepared.structure, "orb", 0.90, mutual=False)
+        matches = merge_matches(orb_intensity, orb_structure)
     if len(matches) < 3:
         raise ValueError(f"Too few geometrically usable matches ({len(matches)})")
-    matches = spatially_distribute(matches, source.shape[1], source.shape[0], config.grid_size, config.max_matches_per_cell, config.min_confidence)
+    candidate_matches = matches
+    matches = spatially_distribute(candidate_matches, source.shape[1], source.shape[0], config.grid_size, config.max_matches_per_cell, config.min_confidence)
+    if len(matches) < 3:
+        fallback_matches = spatially_distribute(candidate_matches, source.shape[1], source.shape[0], config.grid_size, config.max_matches_per_cell, 0.0)
+        if len(fallback_matches) >= 3:
+            matches = fallback_matches
     if len(matches) < 3:
         raise ValueError("Confidence filtering left too few matches")
     model, matrix, inlier_mask = estimate_transform(matches, config.transform, config.ransac_threshold)

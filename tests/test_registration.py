@@ -33,5 +33,5 @@ def test_region_retrieval_fallback_finds_scaled_crop():
     cv2.rectangle(source, (70, 55), (230, 180), 180, 3)
     cv2.circle(source, (155, 120), 28, 220, 3)
     reference = source[35:205, 45:275]
-    result = register(reference, source, RegistrationConfig(method="structural", refine=False, min_confidence=0.1))
+    result = register(source, reference, RegistrationConfig(method="structural", refine=False, min_confidence=0.1))
     assert result["metrics"]["inliers"] >= 3

@@ -9,6 +9,7 @@ from PIL import Image
 
 from backend.config import RegistrationConfig
 from backend.evaluation.export import encode_png, matches_csv, metrics_json, result_json
+from backend.evaluation.synthetic import create_synthetic_pair
 from backend.registration.pipeline import register
 
 st.set_page_config(page_title="LunarMatch-AI", page_icon="◐", layout="wide")
@@ -41,7 +42,7 @@ def image_bytes(image):
     return encode_png(image)
 
 
-def make_demo():
+def make_demo(rotation=7.0, scale=0.88, noise_sigma=0.0):
     base = np.zeros((620, 900), np.uint8)
     rng = np.random.default_rng(26166)
     base[:] = rng.normal(70, 18, base.shape).clip(0, 255)
@@ -50,8 +51,11 @@ def make_demo():
         cv2.circle(base, (x, y), r, int(rng.integers(35, 130)), 2)
         cv2.circle(base, (x - r // 3, y - r // 3), max(2, r // 8), 190, -1)
     cv2.line(base, (80, 490), (760, 120), 150, 5)
-    transform = cv2.getRotationMatrix2D((450, 310), 7, .88); transform[:, 2] += [52, -26]
+    transform = cv2.getRotationMatrix2D((450, 310), rotation, scale); transform[:, 2] += [52, -26]
     moved = cv2.warpAffine(base, transform, (900, 620)); moved = cv2.convertScaleAbs(moved, alpha=1.18, beta=12)
+    if noise_sigma > 0:
+        noise = rng.normal(0, noise_sigma, moved.shape)
+        moved = np.clip(moved.astype(np.float32) + noise, 0, 255).astype(np.uint8)
     return cv2.cvtColor(moved, cv2.COLOR_GRAY2BGR), cv2.cvtColor(base, cv2.COLOR_GRAY2BGR)
 
 
@@ -67,6 +71,9 @@ with st.sidebar:
     min_confidence = st.slider("Minimum confidence", 0.0, 1.0, 0.35, 0.05)
     refine = st.checkbox("Attempt sub-pixel refinement", True)
     demo = st.checkbox("Use demo data", True)
+    demo_rotation = st.slider("Demo rotation", -30.0, 30.0, 7.0, 1.0)
+    demo_scale = st.slider("Demo scale", 0.5, 1.5, 0.88, 0.01)
+    demo_noise = st.slider("Demo noise", 0.0, 25.0, 0.0, 1.0)
     st.caption("Demo data is synthetic validation imagery, not official ISRO evaluation data.")
 
 left, right = st.columns(2)
@@ -80,7 +87,7 @@ with right:
 source = decode(source_upload) if source_upload else None
 reference = decode(reference_upload) if reference_upload else None
 if demo and (source is None or reference is None):
-    source, reference = make_demo()
+    source, reference = make_demo(demo_rotation, demo_scale, demo_noise)
     st.info("DEMO DATA · Synthetic validation pair · Not official evaluation data")
 
 if source is not None and reference is not None:
@@ -117,7 +124,10 @@ if result:
         overlay = cv2.addWeighted(result["registered"], alpha, reference, 1 - alpha, 0)
         st.image(cv2.cvtColor(overlay, cv2.COLOR_BGR2RGB), use_container_width=True)
     with tab_matches:
-        canvas = cv2.hconcat([source, reference])
+        canvas_height = max(source.shape[0], reference.shape[0])
+        canvas = np.zeros((canvas_height, source.shape[1] + reference.shape[1], 3), dtype=np.uint8)
+        canvas[:source.shape[0], :source.shape[1]] = source
+        canvas[:reference.shape[0], source.shape[1]:] = reference
         offset = source.shape[1]
         for match in result["matches"]:
             color = (80, 230, 180) if match.is_inlier else (90, 100, 230)

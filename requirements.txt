@@ -6,3 +6,6 @@ Pillow>=10.4
 scikit-image>=0.24
 pandas>=2.2
 pytest>=8.3
+fastapi>=0.115
+uvicorn[standard]>=0.30
+python-multipart>=0.0.9

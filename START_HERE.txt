@@ -100,6 +100,19 @@ To run without opening a browser:
 
     streamlit run app.py --server.headless true
 
+API server (optional):
+
+    python -m uvicorn backend.api:app --reload --port 8000
+
+API health check:
+
+    http://localhost:8000/api/health
+
+API registration accepts multipart fields named source_image and
+reference_image, plus optional sensor, method, transformation, and
+min_confidence fields. It returns calculated metrics, transformation JSON,
+matches CSV, and the registered PNG encoded as hexadecimal text.
+
 
 5. FIRST DEMO RUN
 =================
